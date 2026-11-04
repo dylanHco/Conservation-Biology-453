@@ -4,5 +4,210 @@ library(vcfR)
 library(adegenet)
 library(poppr)
 library(pegas)
+library(ggtree)
+library(ggplot2)
 
-# a vcf is a convenient file format for storing data
+
+# a vcf is a convenient file format for storing data lets read in the Physaria VCF
+
+vcf <- read.vcfR("filtered_no_SM.vcf.gz")
+
+###Q1) How many samples are in this file and how many SNPS? What is a SNP?
+
+
+
+
+
+#### lets convert our vcf file into a genid format to run some tests
+
+### Be patient and wait for each line of code to finish running - (stop sign will disappear)
+
+gen <- vcfR2genind(vcf)
+dist_matrix <- bitwise.dist(gen)
+
+# Identify population names and convert to a population file format
+pop(gen) <- sub("-.*", "", indNames(gen))
+genpop <- genind2genpop(gen)
+nei <- dist.genpop(genpop, method = 1)
+
+# this will root your phylogenetic tree on the outgroups which is the sister subspecies
+pop_tree_rooted <- root(
+  pop_tree,
+  outgroup = c("PDA", "PDB"),
+  resolve.root = TRUE
+)
+
+# This will ladderize your tree
+pop_tree_rooted <- ladderize(pop_tree_rooted, right = FALSE)
+
+#this plots the tree
+r <- ggtree(pop_tree_rooted, size = 1.2) +
+  geom_tiplab(size = 5)
+
+# this is what the tree looks like
+r
+
+#Save the tree
+ggsave(
+  "your_tree.pdf",
+  r,
+  width = 6,
+  height = 6,
+  units = "in"
+)
+
+###Q2) What does a phylogenetic tree tell you? What can you infer from this tree? Each tip represents a subpopulation. 
+
+
+
+
+
+
+# Lets look at measures of genetic diversity and Fis
+library(dartR)
+
+#Import your vcf file
+vcf <- read.vcfR("filtered_no_SM.vcf.gz")
+
+# We will be useing the program DarTr and need to have genlight file format
+test <- vcfR2genlight(vcf)
+
+#Is the file formated correctly
+test2 <- gl.compliance.check(test)
+
+#estimating heterozygosity
+df <- gl.report.heterozygosity(test2,method = 'ind')
+
+#identify samples to populations
+df$Population <- sub("-.*", "", df$ind.name)
+pop_levels <- c("E", "D", "M", "C", "B", "A", "BN", "HM", "BS", "OP","PDA","PDB")
+
+df$Population <- factor(df$Population, levels = pop_levels)
+
+samples <- colnames(vcf@gt)[-1]
+
+#Below we are binning different populations by geography
+# Q3) What is the difference between binning the main population segment and the blulffs? Think about distribution and occurence of individuals. What process, that we have discussed, has led to the current distribution of the bluffs populations?
+
+
+
+
+
+
+
+# Here we define each Bin
+population <- character(length(samples))
+population[grepl("^(E|D|C|M|A|B)", samples)] <- "Main"
+population[grepl("^(BN|HM|BS)", samples)] <- "Bluffs"
+population[grepl("^OP", samples)] <- "Out_planted"
+population[grepl("^PDA", samples)] <- "PHDODA"
+population[grepl("^PDB", samples)] <- "PHDODB"
+
+#Make boxplots
+het2 <- ggplot(df, aes(x = population, y = Ho)) +
+  geom_boxplot(fill = "gray80", color = "black", outlier.shape = NA) +
+  theme_minimal() +
+  labs(title = "Individual Observed Heterozygosity by Population",y = "Ho") + theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+#make sure the plot works
+het2
+
+#Save the plot
+ggsave("Dartr_het.pdf", plot = het2, width = 10, height = 6)
+
+
+##### Lets also estimate expected heterozygosity
+library(hierfstat)
+# Read VCF
+vcf <- read.vcfR("filtered_no_SM.vcf.gz")
+
+# Convert VCF to genind
+genind_obj <- vcfR2genind(vcf)
+
+# Get sample names in the same order as the genind object
+samples <- indNames(genind_obj)
+
+# Assign geographic groups
+group <- case_when(
+  grepl("^(BN|HM|BS)(-|$)", samples) ~ "Bluffs",
+  grepl("^OP(-|$)", samples)         ~ "Out_planted",
+  grepl("^PDA(-|$)", samples)        ~ "PHDODA",
+  grepl("^PDB(-|$)", samples)        ~ "PHDODB",
+  grepl("^(E|D|M|C|B|A)(-|$)", samples) ~ "Main",
+  TRUE ~ NA_character_
+)
+
+
+# Check assignments
+table(group, useNA = "ifany")
+
+# Assign groups to genind object
+pop(genind_obj) <- factor(
+  group,
+  levels = c("Main", "Bluffs", "Out_planted", "PHDODA", "PHDODB")
+)
+
+# Convert genind to hierfstat format
+hier_data <- genind2hierfstat(genind_obj)
+
+# Calculate basic population genetic statistics
+bs <- basic.stats(hier_data)
+
+
+
+###
+###
+###
+
+# Calculate average statistics across loci for each population
+hierfstat_table <- data.frame(
+  Population = rownames(bs$Hs),
+  Ho = rowMeans(bs$Ho, na.rm = TRUE),
+  Hs = rowMeans(bs$Hs, na.rm = TRUE)
+)
+
+# Add Fis
+hierfstat_table$Fis <- rowMeans(bs$Fis, na.rm = TRUE)
+
+
+hierfstat_table <- data.frame(
+  Population = colnames(bs$Hs),
+  Ho = colMeans(bs$Ho, na.rm = TRUE),
+  Hs = colMeans(bs$Hs, na.rm = TRUE),
+  Fis = colMeans(bs$Fis, na.rm = TRUE)
+)
+
+hierfstat_table <- hierfstat_table %>%
+  mutate(
+    Ho = round(Ho, 4),
+    Hs = round(Hs, 4),
+    Fis = round(Fis, 4)
+  )
+
+hierfstat_table
+#####
+#####
+
+#Q4) Include your boxplot here. Is there a differnece between Ho and Hs? Desribe the results here as if you were writing a results section.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
