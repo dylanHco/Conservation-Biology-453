@@ -1,0 +1,8 @@
+# First you will need to install and load the following libraries
+
+library(vcfR)
+library(adegenet)
+library(poppr)
+library(pegas)
+
+# a vcf is a convenient file format for storing data
