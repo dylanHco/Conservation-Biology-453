@@ -6,6 +6,7 @@ library(poppr)
 library(pegas)
 library(ggtree)
 library(ggplot2)
+library(dartR)
 
 
 # a vcf is a convenient file format for storing data lets read in the Physaria VCF
@@ -18,16 +19,16 @@ vcf <- read.vcfR("filtered_no_SM.vcf.gz")
 
 
 
-#### lets convert our vcf file into a genid format to run some tests
-
+#### lets convert the vcf file into a genid format to run population genetic tests
 ### Be patient and wait for each line of code to finish running - (stop sign will disappear)
-
 gen <- vcfR2genind(vcf)
 dist_matrix <- bitwise.dist(gen)
 
 # Identify population names and convert to a population file format
 pop(gen) <- sub("-.*", "", indNames(gen))
 genpop <- genind2genpop(gen)
+
+# here we are calcualting genetic distance between populations
 nei <- dist.genpop(genpop, method = 1)
 
 # this will root your phylogenetic tree on the outgroups which is the sister subspecies
@@ -41,22 +42,20 @@ pop_tree_rooted <- root(
 pop_tree_rooted <- ladderize(pop_tree_rooted, right = FALSE)
 
 #this plots the tree
-r <- ggtree(pop_tree_rooted, size = 1.2) +
+phylogeny <- ggtree(pop_tree_rooted, size = 1.2) +
   geom_tiplab(size = 5)
 
-# this is what the tree looks like
-r
+# Open up tree and visuzlize in R
+phylogeny
 
 #Save the tree
-ggsave(
-  "your_tree.pdf",
-  r,
+ggsave("your_tree.pdf",
+  phylogeny,
   width = 6,
   height = 6,
-  units = "in"
-)
+  units = "in")
 
-###Q2) What does a phylogenetic tree tell you? What can you infer from this tree? Each tip represents a subpopulation. 
+###Q2) What does a phylogenetic tree tell you? What can you infer from this tree? Include an image of the tree and write a figure caption for it.
 
 
 
@@ -64,8 +63,6 @@ ggsave(
 
 
 # Lets look at measures of genetic diversity and Fis
-library(dartR)
-
 #Import your vcf file
 vcf <- read.vcfR("filtered_no_SM.vcf.gz")
 
@@ -83,11 +80,10 @@ df$Population <- sub("-.*", "", df$ind.name)
 pop_levels <- c("E", "D", "M", "C", "B", "A", "BN", "HM", "BS", "OP","PDA","PDB")
 
 df$Population <- factor(df$Population, levels = pop_levels)
-
 samples <- colnames(vcf@gt)[-1]
 
 #Below we are binning different populations by geography
-# Q3) What is the difference between binning the main population segment and the blulffs? Think about distribution and occurence of individuals. What process, that we have discussed, has led to the current distribution of the bluffs populations?
+# Q3) What process, that we have discussed, has led to Physaria current distribution?
 
 
 
@@ -137,7 +133,6 @@ group <- case_when(
   TRUE ~ NA_character_
 )
 
-
 # Check assignments
 table(group, useNA = "ifany")
 
@@ -152,8 +147,6 @@ hier_data <- genind2hierfstat(genind_obj)
 
 # Calculate basic population genetic statistics
 bs <- basic.stats(hier_data)
-
-
 
 ###
 ###
@@ -188,7 +181,228 @@ hierfstat_table
 #####
 #####
 
-#Q4) Include your boxplot here. Is there a differnece between Ho and Hs? Desribe the results here as if you were writing a results section.  
+#Q4) Include your boxplot here. Is there a differnece between Ho and Hs?  Does the  Physaria douglassi subspecies douglassi have higher or lower genetic diversity than P. d. var. tuplashensis?
+
+
+
+
+
+
+
+
+
+#### Lets look at inbreeding levels across the different sampling schemes 
+
+He_pop <- colMeans(bs$Hs, na.rm = TRUE)
+#we calculuated this from above
+#df <- gl.report.heterozygosity(test2, method = "ind")
+
+#define different sub groupings
+df$population <- NA
+df$population[grepl("^PDA", df$ind.name)] <- "PHDODA"
+df$population[grepl("^PDB", df$ind.name)] <- "PHDODB"
+df$population[grepl("^OP", df$ind.name)]  <- "Out_planted"
+df$population[grepl("^(BN|HM|BS)", df$ind.name)] <- "Bluffs"
+df$population[grepl("^(E|D|C|M|A|B)", df$ind.name)] <- "Main"
+
+table(df$population, useNA = "ifany")
+df$He_pop <- He_pop[df$population]
+df$Fi <- 1 - (df$Ho / df$He_pop)
+
+df$population <- factor(
+  df$population,
+  levels = c("Main",
+             "Bluffs",
+             "Out_planted",
+             "PHDODA",
+             "PHDODB"))
+
+Fis <- ggplot(df, aes(population, Fi)) +
+  geom_boxplot(fill = "grey80", outlier.shape = NA) +
+  theme_minimal() +
+  labs(
+    y = expression(F[i]),
+    title = "Approximate Individual Inbreeding Coefficient") + theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+#make sure the plot works
+Fis
+
+#save the plot
+ggsave("Inbreeding_coefficient.pdf", plot = Fis, width = 10, height = 6)
+
+#Fis results by population
+hierfstat_table
+
+
+#Q5 What conclusions can you make about Fis and inbreeding in general? If a speices has a negative inbreeding coefficient what do you think that means?
+
+
+
+
+
+
+
+
+
+
+# Lets make a structure plot. Here we are using output from a program called ADMIXTURE that computes 1) the most likely number of clusters and 2) membership of each individual. 
+# To run programs like ADMIXTURE you need provide it with a K value. K is the number of clusters you think applies to your samples. Generally, you will never have a single cluster and the very least would be a k=2.
+# ADMIXTURE was run in a linux environment using multiple computing nodes to make it run faster than using a single computer. In doing so I tested K=2 to k=10 and with 20 replicates of each.
+#From this I determined (based on cross validation scores) that K=3 or K=4 are the most likely number of clusters. Follow the code below to visualize the results. 
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(tidyverse)
+library(patchwork)
+
+admix_data <- read.table("physaria_K4.txt", header=FALSE)
+admix_data <- read.table("physaria_K3.txt", header=FALSE)
+
+# Read data
+admix_k4 <- read.table("physaria_K4.txt", header = FALSE)
+admix_k3 <- read.table("physaria_K3.txt", header = FALSE)
+
+# Assign column names
+names(admix_k4) <- c("Sample", paste0("Cluster", 1:4))
+names(admix_k3) <- c("Sample", paste0("Cluster", 1:3))
+
+# Convert each dataset to long format
+k4_long <- admix_k4 %>%
+  pivot_longer(
+    cols = starts_with("Cluster"),
+    names_to = "Cluster",
+    values_to = "Ancestry"
+  ) %>%
+  mutate(K = "K = 4")
+
+k3_long <- admix_k3 %>%
+  pivot_longer(
+    cols = starts_with("Cluster"),
+    names_to = "Cluster",
+    values_to = "Ancestry"
+  ) %>%
+  mutate(K = "K = 3")
+
+# Combine datasets
+admix_long <- bind_rows(k4_long, k3_long)
+
+# Population names
+pop_levels <- c("E", "D", "M", "C", "B", "A",
+                "BN", "HM", "BS", "OP", "SM", "PDA", "PDB")
+
+admix_long <- admix_long %>%
+  mutate(
+    Population = sub("-.*", "", Sample),
+    Population = factor(Population, levels = pop_levels),
+    K = factor(K, levels = c("K = 4", "K = 3"))
+  )
+
+# Check that both datasets contain the same samples
+stopifnot(setequal(admix_k4$Sample, admix_k3$Sample))
+
+# Determine sample order using K = 4
+sample_order <- k4_long %>%
+  group_by(Sample) %>%
+  summarise(
+    MainCluster = Cluster[which.max(Ancestry)],
+    MaxAncestry = max(Ancestry),
+    .groups = "drop"
+  ) %>%
+  mutate(Population = factor(sub("-.*", "", Sample),
+                             levels = pop_levels)) %>%
+  arrange(Population, MainCluster, desc(MaxAncestry)) %>%
+  pull(Sample)
+
+# Apply identical sample order to both datasets
+admix_long$Sample <- factor(admix_long$Sample, levels = sample_order)
+
+# Population boundaries and label positions
+sample_info <- admix_long %>%
+  filter(K == "K = 4") %>%
+  distinct(Sample, Population) %>%
+  arrange(Sample)
+
+pop_info <- sample_info %>%
+  group_by(Population) %>%
+  summarise(
+    start = min(as.numeric(Sample)),
+    end = max(as.numeric(Sample)),
+    middle = (start + end) / 2,
+    .groups = "drop"
+  )
+
+# Cluster colors
+cluster_colors <- c(
+  "Cluster1" = "#E69F00",
+  "Cluster2" = "#56B4E9",
+  "Cluster3" = "#009E73",
+  "Cluster4" = "#CC79A7"
+)
+
+# Plot both K values
+p <- ggplot(admix_long,
+            aes(x = Sample, y = Ancestry, fill = Cluster)) +
+  
+  geom_col(width = 1) +
+  
+  # Population separators
+  geom_vline(
+    data = pop_info[-nrow(pop_info), ],
+    aes(xintercept = end + 0.5),
+    inherit.aes = FALSE,
+    linewidth = 0.7
+  ) +
+  
+  # Population labels only on the bottom panel
+  geom_text(
+    data = pop_info %>% mutate(K = factor("K = 3",
+                                          levels = c("K = 4", "K = 3"))),
+    aes(x = middle, y = -0.05, label = Population),
+    inherit.aes = FALSE,
+    size = 7.5
+  ) +
+  
+  facet_grid(K ~ ., switch = "y") +
+  
+  scale_fill_manual(values = cluster_colors) +
+  
+  scale_y_continuous(expand = c(0, 0)) +
+  
+  scale_x_discrete(expand = c(0, 0)) +
+  
+  coord_cartesian(ylim = c(-0.08, 1), clip = "off") +
+  
+  theme_minimal() +
+  
+  theme(
+    legend.position = "none",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    strip.placement = "outside",
+    strip.text.y.left = element_text(size = 12, angle = 0),
+    plot.margin = margin(10, 10, 30, 10),
+    panel.spacing.y = unit(0.15, "lines")
+  )
+
+p
+
+# Save
+ggsave("Physaria_K3_K4_ADMIX.pdf",
+       plot = p,
+       width = 24,
+       height = 10)
+
+
+
+Q6) Compare and contrast K=3 and K=4. Does one make more sense than the other? Why or why not.
+
+
+
+
+
 
 
 
