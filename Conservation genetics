@@ -276,8 +276,7 @@ library(dplyr)
 library(tidyverse)
 library(patchwork)
 
-admix_data <- read.table("physaria_K4.txt", header=FALSE)
-admix_data <- read.table("physaria_K3.txt", header=FALSE)
+
 
 # Read data
 admix_k4 <- read.table("physaria_K4.txt", header = FALSE)
