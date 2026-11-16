@@ -10,7 +10,11 @@ install.packages("BiocManager")
 BiocManager::install("ggtree")
 
 library(ggtree)
+library(ape)
 library(ggplot2)
+
+#install.packages("dartRverse")
+
 library(dartR)
 
 
@@ -27,7 +31,8 @@ vcf <- read.vcfR("filtered_no_SM.vcf.gz")
 #### lets convert the vcf file into a genid format to run population genetic tests
 ### Be patient and wait for each line of code to finish running - (stop sign will disappear)
 gen <- vcfR2genind(vcf)
-dist_matrix <- bitwise.dist(gen)
+
+#dist_matrix <- bitwise.dist(gen)
 
 # Identify population names and convert to a population file format
 pop(gen) <- sub("-.*", "", indNames(gen))
@@ -35,6 +40,9 @@ genpop <- genind2genpop(gen)
 
 # here we are calcualting genetic distance between populations
 nei <- dist.genpop(genpop, method = 1)
+
+#build a neighbor joining tree based on diatance
+pop_tree <- nj(nei)
 
 # this will root your phylogenetic tree on the outgroups which is the sister subspecies
 pop_tree_rooted <- root(
