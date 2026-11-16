@@ -4,6 +4,11 @@ library(vcfR)
 library(adegenet)
 library(poppr)
 library(pegas)
+
+#### to install ggtree first you need to install bioconductor
+install.packages("BiocManager")
+BiocManager::install("ggtree")
+
 library(ggtree)
 library(ggplot2)
 library(dartR)
