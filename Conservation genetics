@@ -123,6 +123,8 @@ het2
 
 #Save the plot
 ggsave("Dartr_het.pdf", plot = het2, width = 10, height = 6)
+#If you can't get dartR to work - see this plot below
+#(https://github.com/dylanHco/Conservation-Biology-453/blob/main/dartR_plot_Ho_Fis.docx)
 
 
 ##### Lets also estimate expected heterozygosity
