@@ -79,30 +79,32 @@ ggsave("your_tree.pdf",
 #Import your vcf file
 vcf <- read.vcfR("filtered_no_SM.vcf.gz")
 
-# We will be useing the program DarTr and need to have genlight file format
-test <- vcfR2genlight(vcf)
 
+# We will be useing the program DarTr and need to have genlight file format
+#
+#
+#
+#If you cannot install dartR skip this section and see the dartR_plot_Ho_Fis in the github for the figure 
+
+test <- vcfR2genlight(vcf)
 #Is the file formated correctly
 test2 <- gl.compliance.check(test)
-
 #estimating heterozygosity
 df <- gl.report.heterozygosity(test2,method = 'ind')
-
 #identify samples to populations
 df$Population <- sub("-.*", "", df$ind.name)
 pop_levels <- c("E", "D", "M", "C", "B", "A", "BN", "HM", "BS", "OP","PDA","PDB")
-
 df$Population <- factor(df$Population, levels = pop_levels)
 samples <- colnames(vcf@gt)[-1]
+
+
 
 #Below we are binning different populations by geography
 # Q3) What process, that we have discussed, has led to Physaria current distribution?
 
 
 
-
-
-
+#### if you canot use dartR skip the below
 
 # Here we define each Bin
 population <- character(length(samples))
@@ -123,10 +125,12 @@ het2
 
 #Save the plot
 ggsave("Dartr_het.pdf", plot = het2, width = 10, height = 6)
+
 #If you can't get dartR to work - see this plot below
 #(https://github.com/dylanHco/Conservation-Biology-453/blob/main/dartR_plot_Ho_Fis.docx)
 
 
+### Below is not dartR
 ##### Lets also estimate expected heterozygosity
 library(hierfstat)
 # Read VCF
@@ -207,7 +211,7 @@ hierfstat_table
 
 
 #### Lets look at inbreeding levels across the different sampling schemes 
-
+# this is dartR again, skip if you cannot install and see figure in github
 He_pop <- colMeans(bs$Hs, na.rm = TRUE)
 #we calculuated this from above
 #df <- gl.report.heterozygosity(test2, method = "ind")
@@ -244,6 +248,7 @@ Fis
 
 #save the plot
 ggsave("Inbreeding_coefficient.pdf", plot = Fis, width = 10, height = 6)
+### end dartR sections
 
 #Fis results by population
 hierfstat_table
